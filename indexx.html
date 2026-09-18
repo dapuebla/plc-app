@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OptiMath LP - Solver de Programación Lineal Continua</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- Header / Navbar -->
+  <header class="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="bg-indigo-600 p-2 rounded-lg text-white">
+          <i data-lucide="calculator" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+            OptiMath <span class="text-xs bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-full font-mono font-normal">PLC Solver</span>
+          </h1>
+          <p class="text-xs text-slate-400">Investigación Operativa y Optimización Matemática</p>
+        </div>
+      </div>
+      
+      <div class="flex items-center space-x-3">
+        <button id="solveBtn" onclick="solveModel()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2 rounded-lg font-medium text-sm transition-all shadow-md hover:shadow-indigo-500/20 flex items-center gap-2">
+          <i data-lucide="play" class="w-4 h-4 fill-current"></i>
+          <span>Resolver Modelo</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Content Grid -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full grid grid-cols-1 lg:grid-cols-12 gap-8">
+    
+    <!-- LEFT PANEL: Model Input (5 Cols) -->
+    <section class="lg:col-span-5 flex flex-col gap-6">
+      
+      <!-- Model Configuration Card -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h2 class="text-base font-semibold text-slate-900 flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
+          <i data-lucide="sliders" class="w-5 h-5 text-indigo-600"></i>
+          <span>Configuración del Modelo</span>
+        </h2>
+
+        <div class="grid grid-cols-2 gap-4 mb-6">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">Variables ($x_n$)</label>
+            <div class="flex items-center space-x-2">
+              <input type="number" id="numVarsInput" min="2" max="10" value="2" onchange="updateNumVariables(this.value)"
+                class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2.5 font-mono text-center">
+            </div>
+            <p class="text-[11px] text-slate-500 mt-1">Mínimo 2 vars (Gráfico 2D disponible en n=2)</p>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">Objetivo</label>
+            <select id="objTypeSelect" onchange="renderObjectiveFunction()" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2.5 font-medium">
+              <option value="MAX">Maximizar (Max)</option>
+              <option value="MIN">Minimizar (Min)</option>
+            </select>
+            <p class="text-[11px] text-slate-500 mt-1">Optimización continua</p>
+          </div>
+        </div>
+
+        <!-- Objective Function Inputs -->
+        <div class="mb-2">
+          <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">Función Objetivo</label>
+          <div id="objCoeffsContainer" class="bg-slate-50 p-3 rounded-lg border border-slate-200 flex flex-wrap items-center gap-2 overflow-x-auto custom-scrollbar">
+            <!-- Dynamic Objective Function Inputs -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Constraints Card -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex-1 flex flex-col">
+        <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+          <h2 class="text-base font-semibold text-slate-900 flex items-center gap-2">
+            <i data-lucide="layers" class="w-5 h-5 text-indigo-600"></i>
+            <span>Restricciones del Sistema</span>
+          </h2>
+          <button onclick="addConstraintRow()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-xs font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors">
+            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+            <span>Añadir</span>
+          </button>
+        </div>
+
+        <div id="constraintsContainer" class="space-y-3 flex-1 overflow-y-auto max-h-[420px] pr-1 custom-scrollbar">
+          <!-- Dynamic Constraint Rows -->
+        </div>
+
+        <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-mono">
+          <span>Sujeto a no negatividad:</span>
+          <span>$x_1, x_2, \dots, x_n \ge 0$</span>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- RIGHT PANEL: Results, Saturation, Graph & Simplex Tableaus (7 Cols) -->
+    <section class="lg:col-span-7 flex flex-col gap-6">
+
+      <!-- Status Banner -->
+      <div id="statusBanner" class="bg-slate-800 text-white p-4 rounded-xl shadow-sm border border-slate-700 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div id="statusIconContainer" class="p-2 bg-slate-700 rounded-lg text-slate-300">
+            <i data-lucide="info" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <div class="text-xs uppercase tracking-wider font-semibold text-slate-400">Estado de Resolución</div>
+            <div id="statusText" class="text-base font-bold text-white">Listo para calcular</div>
+          </div>
+        </div>
+        <div id="zValueContainer" class="text-right hidden">
+          <div class="text-xs uppercase tracking-wider font-semibold text-indigo-300">Valor Óptimo Z</div>
+          <div id="zValueText" class="text-2xl font-extrabold font-mono text-indigo-400">0.00</div>
+        </div>
+      </div>
+
+      <!-- Decision Variables Card -->
+      <div id="variablesResultCard" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hidden">
+        <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">Valores de las Variables de Decisión</h3>
+        <div id="variablesGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 font-mono">
+          <!-- Dynamic Variable Value Boxes -->
+        </div>
+      </div>
+
+      <!-- Graph 2D Container (Visible only when n = 2) -->
+      <div id="graphCard" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hidden">
+        <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
+          <h3 class="text-base font-semibold text-slate-900 flex items-center gap-2">
+            <i data-lucide="line-chart" class="w-5 h-5 text-indigo-600"></i>
+            <span>Región Factible y Solución Gráfica (2D)</span>
+          </h3>
+          <span class="text-xs bg-indigo-50 text-indigo-700 font-medium px-2.5 py-1 rounded-full border border-indigo-100">
+            Variables: $x_1, x_2$
+          </span>
+        </div>
+        <div class="relative w-full h-[360px]">
+          <canvas id="lpChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Constraint Saturation Table Card -->
+      <div id="saturationCard" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hidden">
+        <h3 class="text-base font-semibold text-slate-900 flex items-center gap-2 mb-4 pb-2 border-b border-slate-100">
+          <i data-lucide="check-circle-2" class="w-5 h-5 text-indigo-600"></i>
+          <span>Análisis de Holguras, Excesos y Saturación</span>
+        </h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                <th class="py-3 px-4">Restricción</th>
+                <th class="py-3 px-4 text-center">Evaluación LHS</th>
+                <th class="py-3 px-4 text-center">Operador / RHS</th>
+                <th class="py-3 px-4 text-center">Holgura / Exceso</th>
+                <th class="py-3 px-4 text-center">Estado</th>
+              </tr>
+            </thead>
+            <tbody id="saturationTableBody" class="divide-y divide-slate-100 font-mono text-xs">
+              <!-- Dynamic Saturation Rows -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Simplex Tableaus Log (Educational) -->
+      <div id="tableausCard" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hidden">
+        <button onclick="toggleTableaus()" class="w-full flex items-center justify-between text-left font-semibold text-slate-900">
+          <span class="flex items-center gap-2">
+            <i data-lucide="table" class="w-5 h-5 text-indigo-600"></i>
+            <span>Iteraciones del Algoritmo Simplex (Tablaus)</span>
+          </span>
+          <i id="tableausToggleIcon" data-lucide="chevron-down" class="w-5 h-5 text-slate-400 transition-transform"></i>
+        </button>
+        <div id="tableausContent" class="mt-4 hidden space-y-6 overflow-x-auto">
+          <!-- Dynamic Tableaus -->
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <script>
+    // --- APP GLOBAL STATE ---
+    let numVariables = 2;
+    let constraintCount = 0;
+    let chartInstance = null;
+
+    // --- INITIALIZATION ---
+    document.addEventListener("DOMContentLoaded", () => {
+      lucide.createIcons();
+      renderObjectiveFunction();
+      addConstraintRow([2, 1], '<=', 10);
+      addConstraintRow([1, 2], '<=', 8);
+    });
+
+    // --- INTERFACE BUILDERS ---
+    function updateNumVariables(val) {
+      let v = parseInt(val);
+      if (isNaN(v) || v < 2) v = 2;
+      if (v > 10) v = 10;
+      numVariables = v;
+      document.getElementById('numVarsInput').value = v;
+
+      renderObjectiveFunction();
+      
+      // Update existing constraint rows to reflect variable count
+      const rows = document.querySelectorAll('.constraint-row');
+      rows.forEach(row => {
+        const coeffContainer = row.querySelector('.constraint-coeffs');
+        const oldInputs = coeffContainer.querySelectorAll('input');
+        const oldVals = Array.from(oldInputs).map(i => parseFloat(i.value) || 0);
+        
+        coeffContainer.innerHTML = '';
+        for (let j = 0; j < numVariables; j++) {
+          const val = oldVals[j] !== undefined ? oldVals[j] : 1;
+          const wrapper = document.createElement('div');
+          wrapper.className = 'flex items-center gap-1';
+          wrapper.innerHTML = `
+            <input type="number" step="any" value="${val}" class="w-16 bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono text-center focus:ring-indigo-500 focus:border-indigo-500">
+            <span class="text-xs font-mono font-medium text-slate-600">x<sub>${j+1}</sub>${j < numVariables - 1 ? ' +' : ''}</span>
+          `;
+          coeffContainer.appendChild(wrapper);
+        }
+      });
+    }
+
+    function renderObjectiveFunction() {
+      const container = document.getElementById('objCoeffsContainer');
+      const objType = document.getElementById('objTypeSelect').value;
+      const prefix = objType === 'MAX' ? 'Max[Z] =' : 'Min[Z] =';
+      
+      const existingInputs = container.querySelectorAll('input');
+      const oldVals = Array.from(existingInputs).map(i => parseFloat(i.value) || 0);
+
+      container.innerHTML = `
+        <span class="text-xs font-bold font-mono text-indigo-700 mr-1">${prefix}</span>
+      `;
+
+      for (let i = 0; i < numVariables; i++) {
+        const val = oldVals[i] !== undefined ? oldVals[i] : (i === 0 ? 3 : 2);
+        const wrapper = document.createElement('div');
+        wrapper.className = 'flex items-center gap-1';
+        wrapper.innerHTML = `
+          <input type="number" step="any" value="${val}" class="obj-coeff w-16 bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono text-center focus:ring-indigo-500 focus:border-indigo-500">
+          <span class="text-xs font-mono font-medium text-slate-600">x<sub>${i+1}</sub>${i < numVariables - 1 ? ' +' : ''}</span>
+        `;
+        container.appendChild(wrapper);
+      }
+    }
+
+    function addConstraintRow(coeffs = null, op = '<=', rhs = 10) {
+      constraintCount++;
+      const container = document.getElementById('constraintsContainer');
+      const rowId = `constraint-row-${Date.now()}-${constraintCount}`;
+
+      const row = document.createElement('div');
+      row.id = rowId;
+      row.className = 'constraint-row bg-slate-50 p-3 rounded-lg border border-slate-200 flex flex-wrap items-center justify-between gap-2';
+
+      let coeffsHTML = `<div class="constraint-coeffs flex flex-wrap items-center gap-1">`;
+      for (let j = 0; j < numVariables; j++) {
+        const val = (coeffs && coeffs[j] !== undefined) ? coeffs[j] : 1;
+        coeffsHTML += `
+          <div class="flex items-center gap-1">
+            <input type="number" step="any" value="${val}" class="w-16 bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono text-center focus:ring-indigo-500 focus:border-indigo-500">
+            <span class="text-xs font-mono font-medium text-slate-600">x<sub>${j+1}</sub>${j < numVariables - 1 ? ' +' : ''}</span>
+          </div>
+        `;
+      }
+      coeffsHTML += `</div>`;
+
+      row.innerHTML = `
+        <div class="flex items-center gap-2 flex-1">
+          <span class="text-xs font-bold font-mono text-slate-400 w-6">R${container.children.length + 1}</span>
+          ${coeffsHTML}
+        </div>
+        <div class="flex items-center gap-2">
+          <select class="constraint-op bg-white border border-slate-300 rounded px-2 py-1 text-xs font-medium focus:ring-indigo-500 focus:border-indigo-500">
+            <option value="<=" ${op === '<=' ? 'selected' : ''}>&le;</option>
+            <option value=">=" ${op === '>=' ? 'selected' : ''}>&ge;</option>
+            <option value="=" ${op === '=' ? 'selected' : ''}>=</option>
+          </select>
+          <input type="number" step="any" value="${rhs}" class="constraint-rhs w-20 bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono text-center focus:ring-indigo-500 focus:border-indigo-500">
+          <button onclick="removeConstraintRow('${rowId}')" class="text-slate-400 hover:text-red-500 p-1 transition-colors">
+            <i data-lucide="trash-2" class="w-4 h-4"></i>
+          </button>
+        </div>
+      `;
+
+      container.appendChild(row);
+      lucide.createIcons();
+      reindexConstraintLabels();
+    }
+
+    function removeConstraintRow(rowId) {
+      const row = document.getElementById(rowId);
+      if (row) {
+        row.remove();
+        reindexConstraintLabels();
+      }
+    }
+
+    function reindexConstraintLabels() {
+      const rows = document.querySelectorAll('#constraintsContainer .constraint-row');
+      rows.forEach((row, idx) => {
+        const label = row.querySelector('.font-bold');
+        if (label) label.textContent = `R${idx + 1}`;
+      });
+    }
+
+    // --- SOLVER & SIMPLEX ENGINE ---
+    function solveModel() {
+      // 1. Gather objective function
+      const objType = document.getElementById('objTypeSelect').value;
+      const objInputs = document.querySelectorAll('.obj-coeff');
+      const c = Array.from(objInputs).map(inp => parseFloat(inp.value) || 0);
+
+      // 2. Gather constraints
+      const constraintRows = document.querySelectorAll('.constraint-row');
+      if (constraintRows.length === 0) {
+        alert('Añade al menos una restricción para resolver.');
+        return;
+      }
+
+      const A = [];
+      const ops = [];
+      const b = [];
+
+      constraintRows.forEach(row => {
+        const coeffInputs = row.querySelectorAll('.constraint-coeffs input');
+        const rowCoeffs = Array.from(coeffInputs).map(inp => parseFloat(inp.value) || 0);
+        const op = row.querySelector('.constraint-op').value;
+        const rhs = parseFloat(row.querySelector('.constraint-rhs').value) || 0;
+
+        A.push(rowCoeffs);
+        ops.push(op);
+        b.push(rhs);
+      });
+
+      // 3. Solve via Two-Phase Simplex
+      const solution = runTwoPhaseSimplex(c, A, b, ops, objType);
+
+      // 4. Display Results
+      displayResults(solution, c, A, b, ops, objType);
+    }
+
+    /**
+     * Canonical Two-Phase Simplex Algorithm
+     */
+    function runTwoPhaseSimplex(c_orig, A_orig, b_orig, ops_orig, objType) {
+      const isMin = objType === 'MIN';
+      const n = c_orig.length;
+      const m = b_orig.length;
+
+      // Normalize RHS >= 0
+      let A = A_orig.map(row => [...row]);
+      let b = [...b_orig];
+      let ops = [...ops_orig];
+
+      for (let i = 0; i < m; i++) {
+        if (b[i] < 0) {
+          b[i] = -b[i];
+          A[i] = A[i].map(v => -v);
+          if (ops[i] === '<=') ops[i] = '>=';
+          else if (ops[i] === '>=') ops[i] = '<=';
+        }
+      }
+
+      // Variable indexing
+      let numSlack = 0, numSurplus = 0, numArtif = 0;
+      ops.forEach(op => {
+        if (op === '<=') numSlack++;
+        else if (op === '>=') { numSurplus++; numArtif++; }
+        else if (op === '=') { numArtif++; }
+      });
+
+      const totalVars = n + numSlack + numSurplus + numArtif;
+      let slackIdx = n;
+      let surplusIdx = n + numSlack;
+      let artifIdx = n + numSlack + numSurplus;
+
+      const basis = [];
+      const artifIndices = [];
+
+      // Initial Tableau
+      let tableau = Array.from({ length: m }, () => new Float64Array(totalVars + 1));
+
+      for (let i = 0; i < m; i++) {
+        for (let j = 0; j < n; j++) tableau[i][j] = A[i][j];
+        tableau[i][totalVars] = b[i];
+
+        if (ops[i] === '<=') {
+          tableau[i][slackIdx] = 1.0;
+          basis.push(slackIdx);
+          slackIdx++;
+        } else if (ops[i] === '>=') {
+          tableau[i][surplusIdx] = -1.0;
+          tableau[i][artifIdx] = 1.0;
+          basis.push(artifIdx);
+          artifIndices.push(artifIdx);
+          surplusIdx++;
+          artifIdx++;
+        } else if (ops[i] === '=') {
+          tableau[i][artifIdx] = 1.0;
+          basis.push(artifIdx);
+          artifIndices.push(artifIdx);
+          artifIdx++;
+        }
+      }
+
+      const tableausLog = [];
+
+      // Pivot subroutine
+      function pivot(tab, objRow, bas, phaseName) {
+        const maxIter = 100;
+        for (let iter = 0; iter < maxIter; iter++) {
+          // Log state
+          tableausLog.push({
+            phase: phaseName,
+            iter: iter + 1,
+            tableau: tab.map(r => Array.from(r)),
+            objRow: Array.from(objRow),
+            basis: [...bas]
+          });
+
+          // Entering variable: most negative value in obj row
+          let pCol = -1;
+          let minVal = -1e-7;
+          for (let j = 0; j < totalVars; j++) {
+            if (objRow[j] < minVal) {
+              minVal = objRow[j];
+              pCol = j;
+            }
+          }
+
+          if (pCol === -1) return 'OPTIMAL'; // No entering variable -> Optimal
+
+          // Leaving variable: Minimum Ratio Test
+          let pRow = -1;
+          let minRatio = Infinity;
+          for (let i = 0; i < m; i++) {
+            if (tab[i][pCol] > 1e-8) {
+              const ratio = tab[i][totalVars] / tab[i][pCol];
+              if (ratio < minRatio) {
+                minRatio = ratio;
+                pRow = i;
+              }
+            }
+          }
+
+          if (pRow === -1) return 'UNBOUNDED'; // No leaving variable -> Unbounded
+
+          // Perform Pivoting
+          const pivotVal = tab[pRow][pCol];
+          for (let j = 0; j <= totalVars; j++) tab[pRow][j] /= pivotVal;
+
+          for (let i = 0; i < m; i++) {
+            if (i !== pRow) {
+              const factor = tab[i][pCol];
+              for (let j = 0; j <= totalVars; j++) {
+                tab[i][j] -= factor * tab[pRow][j];
+              }
+            }
+          }
+
+          const objFactor = objRow[pCol];
+          for (let j = 0; j <= totalVars; j++) {
+            objRow[j] -= objFactor * tab[pRow][j];
+          }
+
+          bas[pRow] = pCol;
+        }
+        return 'OPTIMAL';
+      }
+
+      // PHASE 1
+      let phase1Obj = new Float64Array(totalVars + 1);
+      if (numArtif > 0) {
+        for (let i = 0; i < m; i++) {
+          if (artifIndices.includes(basis[i])) {
+            for (let j = 0; j <= totalVars; j++) {
+              phase1Obj[j] -= tableau[i][j];
+            }
+          }
+        }
+        for (let aIdx of artifIndices) phase1Obj[aIdx] = 0.0;
+
+        const res1 = pivot(tableau, phase1Obj, basis, 'Fase 1 (Búsqueda de Base Factible)');
+        if (Math.abs(phase1Obj[totalVars]) > 1e-5) {
+          return { status: 'INFEASIBLE', tableausLog };
+        }
+      }
+
+      // PHASE 2
+      // Goal: Maximize Z_max.
+      // If MAX: Z - sum(c_j x_j) = 0 => obj coeffs = -c_j
+      // If MIN: Maximize Z_max = -Z = sum(-c_j x_j) => Z_max - sum(-c_j x_j) = 0 => obj coeffs = +c_j
+      let phase2Obj = new Float64Array(totalVars + 1);
+      for (let j = 0; j < n; j++) {
+        phase2Obj[j] = isMin ? c_orig[j] : -c_orig[j];
+      }
+
+      // Zero out basic variables in Obj row
+      for (let i = 0; i < m; i++) {
+        const bVar = basis[i];
+        const coeff = phase2Obj[bVar];
+        if (Math.abs(coeff) > 1e-8) {
+          for (let j = 0; j <= totalVars; j++) {
+            phase2Obj[j] -= coeff * tableau[i][j];
+          }
+        }
+      }
+
+      // Block artificial variables from entering
+      for (let aIdx of artifIndices) phase2Obj[aIdx] = Infinity;
+
+      const res2 = pivot(tableau, phase2Obj, basis, 'Fase 2 (Optimización del Modelo)');
+      if (res2 === 'UNBOUNDED') {
+        return { status: 'UNBOUNDED', tableausLog };
+      }
+
+      // Extract Variable Values
+      const xSol = new Float64Array(n);
+      for (let i = 0; i < m; i++) {
+        if (basis[i] < n) {
+          xSol[basis[i]] = tableau[i][totalVars];
+        }
+      }
+
+      // Calculate Final Z
+      let zCalc = 0;
+      for (let j = 0; j < n; j++) {
+        zCalc += c_orig[j] * xSol[j];
+      }
+
+      return {
+        status: 'OPTIMAL',
+        x: Array.from(xSol),
+        z: zCalc,
+        basis: [...basis],
+        tableausLog
+      };
+    }
+
+    // --- DISPLAY RESULTS & GRAPHING ---
+    function displayResults(solution, c, A, b, ops, objType) {
+      const banner = document.getElementById('statusBanner');
+      const iconContainer = document.getElementById('statusIconContainer');
+      const statusText = document.getElementById('statusText');
+      const zContainer = document.getElementById('zValueContainer');
+      const zText = document.getElementById('zValueText');
+
+      const varsCard = document.getElementById('variablesResultCard');
+      const graphCard = document.getElementById('graphCard');
+      const satCard = document.getElementById('saturationCard');
+      const tableausCard = document.getElementById('tableausCard');
+
+      if (solution.status === 'OPTIMAL') {
+        banner.className = 'bg-emerald-900 text-white p-4 rounded-xl shadow-sm border border-emerald-700 flex items-center justify-between';
+        iconContainer.className = 'p-2 bg-emerald-800 text-emerald-200 rounded-lg';
+        iconContainer.innerHTML = `<i data-lucide="check-circle" class="w-6 h-6"></i>`;
+        statusText.textContent = 'Solución Óptima Encontrada';
+        
+        zContainer.classList.remove('hidden');
+        zText.textContent = solution.z.toFixed(2);
+
+        // Populate Decision Variables
+        varsCard.classList.remove('hidden');
+        const varsGrid = document.getElementById('variablesGrid');
+        varsGrid.innerHTML = '';
+        solution.x.forEach((val, idx) => {
+          const div = document.createElement('div');
+          div.className = 'bg-slate-50 border border-slate-200 p-3 rounded-lg text-center';
+          div.innerHTML = `
+            <div class="text-xs text-slate-500 font-sans font-medium mb-1">Variable x<sub>${idx + 1}</sub></div>
+            <div class="text-lg font-bold text-slate-800">${val.toFixed(2)}</div>
+          `;
+          varsGrid.appendChild(div);
+        });
+
+        // Saturation Table
+        satCard.classList.remove('hidden');
+        renderSaturationTable(solution.x, A, b, ops);
+
+        // 2D Graphical Visualization (n = 2)
+        if (numVariables === 2) {
+          graphCard.classList.remove('hidden');
+          render2DGraph(solution.x, A, b, ops);
+        } else {
+          graphCard.classList.add('hidden');
+        }
+
+      } else if (solution.status === 'INFEASIBLE') {
+        banner.className = 'bg-amber-900 text-white p-4 rounded-xl shadow-sm border border-amber-700 flex items-center justify-between';
+        iconContainer.className = 'p-2 bg-amber-800 text-amber-200 rounded-lg';
+        iconContainer.innerHTML = `<i data-lucide="alert-triangle" class="w-6 h-6"></i>`;
+        statusText.textContent = 'Modelo Infactible (Sin solución factible)';
+        zContainer.classList.add('hidden');
+        varsCard.classList.add('hidden');
+        satCard.classList.add('hidden');
+        graphCard.classList.add('hidden');
+
+      } else if (solution.status === 'UNBOUNDED') {
+        banner.className = 'bg-indigo-900 text-white p-4 rounded-xl shadow-sm border border-indigo-700 flex items-center justify-between';
+        iconContainer.className = 'p-2 bg-indigo-800 text-indigo-200 rounded-lg';
+        iconContainer.innerHTML = `<i data-lucide="arrow-up-right" class="w-6 h-6"></i>`;
+        statusText.textContent = 'Modelo No Acotado (Solución infinita)';
+        zContainer.classList.add('hidden');
+        varsCard.classList.add('hidden');
+        satCard.classList.add('hidden');
+        graphCard.classList.add('hidden');
+      }
+
+      // Educational Tableaus
+      tableausCard.classList.remove('hidden');
+      renderTableaus(solution.tableausLog);
+
+      lucide.createIcons();
+    }
+
+    function renderSaturationTable(x, A, b, ops) {
+      const tbody = document.getElementById('saturationTableBody');
+      tbody.innerHTML = '';
+
+      A.forEach((row, i) => {
+        let lhs = 0;
+        for (let j = 0; j < x.length; j++) lhs += row[j] * x[j];
+
+        const rhs = b[i];
+        const op = ops[i];
+        let diff = 0;
+        let diffType = '';
+
+        if (op === '<=') {
+          diff = rhs - lhs;
+          diffType = 'Holgura';
+        } else if (op === '>=') {
+          diff = lhs - rhs;
+          diffType = 'Exceso';
+        } else {
+          diff = Math.abs(lhs - rhs);
+          diffType = 'Diferencia';
+        }
+
+        const isActive = Math.abs(diff) < 1e-4;
+
+        const tr = document.createElement('tr');
+        tr.className = isActive ? 'bg-indigo-50/50 hover:bg-indigo-50' : 'hover:bg-slate-50';
+        tr.innerHTML = `
+          <td class="py-3 px-4 font-bold text-slate-700">Restricción R${i + 1}</td>
+          <td class="py-3 px-4 text-center font-semibold text-slate-900">${lhs.toFixed(2)}</td>
+          <td class="py-3 px-4 text-center text-slate-500">${op} ${rhs.toFixed(2)}</td>
+          <td class="py-3 px-4 text-center text-slate-700">${diff.toFixed(2)} <span class="text-[10px] text-slate-400">(${diffType})</span></td>
+          <td class="py-3 px-4 text-center">
+            ${isActive 
+              ? `<span class="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-[11px] font-semibold px-2 py-0.5 rounded-full border border-emerald-200">Activa (Saturada)</span>`
+              : `<span class="inline-flex items-center gap-1 bg-slate-100 text-slate-600 text-[11px] font-medium px-2 py-0.5 rounded-full border border-slate-200">Inactiva</span>`
+            }
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function render2DGraph(xOpt, A, b, ops) {
+      const ctx = document.getElementById('lpChart').getContext('2d');
+      if (chartInstance) chartInstance.destroy();
+
+      // Find chart bounds based on constraints
+      let maxX = xOpt[0] * 1.5 || 10;
+      let maxY = xOpt[1] * 1.5 || 10;
+
+      A.forEach((row, i) => {
+        const rhs = b[i];
+        if (row[0] > 0) maxX = Math.max(maxX, (rhs / row[0]) * 1.25);
+        if (row[1] > 0) maxY = Math.max(maxY, (rhs / row[1]) * 1.25);
+      });
+
+      maxX = Math.ceil(Math.max(maxX, 5));
+      maxY = Math.ceil(Math.max(maxY, 5));
+
+      const datasets = [];
+
+      // 1. Constraint Lines
+      const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+      A.forEach((row, i) => {
+        const a1 = row[0], a2 = row[1], rhs = b[i];
+        const points = [];
+
+        if (Math.abs(a2) > 1e-5) {
+          points.push({ x: 0, y: rhs / a2 });
+          points.push({ x: maxX, y: (rhs - a1 * maxX) / a2 });
+        } else if (Math.abs(a1) > 1e-5) {
+          points.push({ x: rhs / a1, y: 0 });
+          points.push({ x: rhs / a1, y: maxY });
+        }
+
+        datasets.push({
+          type: 'line',
+          label: `R${i + 1}: ${a1}x₁ + ${a2}x₂ ${ops[i]} ${rhs}`,
+          data: points,
+          borderColor: colors[i % colors.length],
+          borderWidth: 2,
+          fill: false,
+          pointRadius: 0
+        });
+      });
+
+      // 2. Feasible Region Polygon Calculation
+      const feasibleVertices = findFeasiblePolygon(A, b, ops, maxX, maxY);
+      if (feasibleVertices.length > 0) {
+        datasets.push({
+          type: 'line',
+          label: 'Región Factible',
+          data: feasibleVertices,
+          backgroundColor: 'rgba(139, 92, 246, 0.35)', // Violet shading differentiated from R3
+          borderColor: 'rgba(124, 58, 237, 0.8)',
+          borderWidth: 1.5,
+          borderDash: [4, 4],
+          fill: 'start',
+          pointRadius: 0
+        });
+      }
+
+      // 3. Optimal Point
+      datasets.push({
+        type: 'scatter',
+        label: `Óptimo (${xOpt[0].toFixed(2)}, ${xOpt[1].toFixed(2)})`,
+        data: [{ x: xOpt[0], y: xOpt[1] }],
+        backgroundColor: '#4f46e5',
+        borderColor: '#ffffff',
+        borderWidth: 3,
+        pointRadius: 8,
+        pointHoverRadius: 10
+      });
+
+      chartInstance = new Chart(ctx, {
+        data: { datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              type: 'linear',
+              position: 'bottom',
+              min: 0,
+              max: maxX,
+              title: { display: true, text: 'Variable x₁', font: { weight: 'bold' } }
+            },
+            y: {
+              min: 0,
+              max: maxY,
+              title: { display: true, text: 'Variable x₂', font: { weight: 'bold' } }
+            }
+          },
+          plugins: {
+            tooltip: {
+              callbacks: {
+                label: (ctx) => `${ctx.dataset.label}: (${ctx.parsed.x.toFixed(2)}, ${ctx.parsed.y.toFixed(2)})`
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function findFeasiblePolygon(A, b, ops, maxX, maxY) {
+      // Collect candidate lines (including non-negativity and bounds)
+      const lines = [];
+      A.forEach((row, i) => lines.push({ a1: row[0], a2: row[1], rhs: b[i], op: ops[i] }));
+      lines.push({ a1: 1, a2: 0, rhs: 0, op: '>=' });
+      lines.push({ a1: 0, a2: 1, rhs: 0, op: '>=' });
+
+      const points = [];
+      for (let i = 0; i < lines.length; i++) {
+        for (let j = i + 1; j < lines.length; j++) {
+          const l1 = lines[i], l2 = lines[j];
+          const det = l1.a1 * l2.a2 - l2.a1 * l1.a2;
+          if (Math.abs(det) > 1e-6) {
+            const px = (l1.rhs * l2.a2 - l2.rhs * l1.a2) / det;
+            const py = (l1.a1 * l2.rhs - l2.a1 * l1.rhs) / det;
+            if (px >= -1e-5 && py >= -1e-5 && px <= maxX + 1 && py <= maxY + 1) {
+              if (isFeasiblePoint(px, py, A, b, ops)) {
+                points.push({ x: px, y: py });
+              }
+            }
+          }
+        }
+      }
+
+      if (points.length === 0) return [];
+
+      // Sort points radially to construct polygon
+      const cx = points.reduce((s, p) => s + p.x, 0) / points.length;
+      const cy = points.reduce((s, p) => s + p.y, 0) / points.length;
+
+      points.sort((p1, p2) => Math.atan2(p1.y - cy, p1.x - cx) - Math.atan2(p2.y - cy, p2.x - cx));
+      points.push(points[0]); // Close polygon
+      return points;
+    }
+
+    function isFeasiblePoint(x1, x2, A, b, ops) {
+      for (let i = 0; i < A.length; i++) {
+        const val = A[i][0] * x1 + A[i][1] * x2;
+        const rhs = b[i];
+        const op = ops[i];
+        if (op === '<=' && val > rhs + 1e-4) return false;
+        if (op === '>=' && val < rhs - 1e-4) return false;
+        if (op === '=' && Math.abs(val - rhs) > 1e-4) return false;
+      }
+      return true;
+    }
+
+    function renderTableaus(logs) {
+      const container = document.getElementById('tableausContent');
+      container.innerHTML = '';
+
+      logs.forEach(log => {
+        const div = document.createElement('div');
+        div.className = 'bg-slate-50 border border-slate-200 p-4 rounded-lg';
+
+        let headersHTML = `<th class="py-2 px-3 border border-slate-200 bg-slate-100">Base</th>`;
+        for (let j = 0; j < log.objRow.length - 1; j++) {
+          headersHTML += `<th class="py-2 px-3 border border-slate-200 bg-slate-100">x<sub>${j+1}</sub></th>`;
+        }
+        headersHTML += `<th class="py-2 px-3 border border-slate-200 bg-slate-100">RHS</th>`;
+
+        let rowsHTML = '';
+        log.tableau.forEach((r, idx) => {
+          const bVar = log.basis[idx];
+          rowsHTML += `<tr>`;
+          rowsHTML += `<td class="py-1.5 px-3 border border-slate-200 font-bold bg-slate-100 text-center">x<sub>${bVar + 1}</sub></td>`;
+          r.forEach(val => {
+            rowsHTML += `<td class="py-1.5 px-3 border border-slate-200 text-center font-mono">${val.toFixed(2)}</td>`;
+          });
+          rowsHTML += `</tr>`;
+        });
+
+        // Obj row
+        rowsHTML += `<tr class="bg-indigo-50 font-bold">`;
+        rowsHTML += `<td class="py-1.5 px-3 border border-slate-200 text-center text-indigo-700">Z</td>`;
+        log.objRow.forEach(val => {
+          rowsHTML += `<td class="py-1.5 px-3 border border-slate-200 text-center font-mono text-indigo-900">${val.toFixed(2)}</td>`;
+        });
+        rowsHTML += `</tr>`;
+
+        div.innerHTML = `
+          <div class="text-xs font-semibold text-indigo-600 uppercase tracking-wider mb-2">${log.phase} - Iteración ${log.iter}</div>
+          <table class="w-full text-xs border-collapse border border-slate-200">
+            <thead><tr>${headersHTML}</tr></thead>
+            <tbody>${rowsHTML}</tbody>
+          </table>
+        `;
+
+        container.appendChild(div);
+      });
+    }
+
+    function toggleTableaus() {
+      const content = document.getElementById('tableausContent');
+      const icon = document.getElementById('tableausToggleIcon');
+      content.classList.toggle('hidden');
+      icon.classList.toggle('rotate-180');
+    }
+  </script>
+</body>
+</html>
